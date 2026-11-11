@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Texas Hold'em 🎴</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+#rotateHint{display:none;position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:999;
+  background:rgba(0,0,0,0.7);color:#ffd54f;padding:4px 14px;border-radius:12px;font-size:10px;
+  font-family:"Microsoft YaHei",sans-serif;pointer-events:none}
+@media(orientation:portrait) and (max-width:768px){#rotateHint{display:block}}
+
+body{background:radial-gradient(ellipse at center,#1a0c00 0%,#0a0400 100%);font-family:"Microsoft YaHei","PingFang SC",sans-serif;height:100vh;height:100dvh;width:100vw;width:100dvw;overflow:hidden;display:flex;align-items:center;justify-content:center;user-select:none}
+
+/* ===== 难度选择界面 ===== */
+.menu-overlay{display:flex;position:fixed;inset:0;z-index:9998;background:radial-gradient(ellipse at center,#1a0c00 0%,#000 100%);flex-direction:column;align-items:center;justify-content:center}
+.menu-overlay.hidden{display:none}
+.menu-title{color:#ffd54f;font-size:clamp(28px,6vw,42px);font-weight:bold;margin-bottom:8px;text-shadow:0 0 30px rgba(255,200,0,.4)}
+.menu-sub{color:#888;font-size:clamp(12px,2vw,15px);margin-bottom:32px}
+.menu-btns{display:flex;flex-direction:column;gap:12px;width:min(280px,80vw)}
+.menu-btn{width:100%;padding:14px 0;border:none;border-radius:14px;font-size:clamp(15px,2.5vw,18px);font-weight:bold;cursor:pointer;color:#fff;letter-spacing:2px;transition:transform .15s,box-shadow .15s;min-height:48px}
+.menu-btn:active{transform:scale(.95)}
+.btn-easy{background:linear-gradient(135deg,#66bb6a,#388e3c);box-shadow:0 4px 15px rgba(100,200,100,.3)}
+.btn-medium{background:linear-gradient(135deg,#ff9800,#f57c00);box-shadow:0 4px 15px rgba(255,150,0,.3)}
+.btn-hard{background:linear-gradient(135deg,#ef5350,#c62828);box-shadow:0 4px 15px rgba(240,80,80,.3)}
+.btn-hell{background:linear-gradient(135deg,#8e24aa,#4a148c);box-shadow:0 4px 15px rgba(140,40,170,.4);display:none;animation:hellGlow 2s ease-in-out infinite}
+.btn-hell.unlocked{display:block}
+@keyframes hellGlow{0%,100%{box-shadow:0 4px 15px rgba(140,40,170,.4)}50%{box-shadow:0 4px 30px rgba(200,60,255,.8),0 0 60px rgba(200,60,255,.3)}}
+.hell-lock{color:#666;font-size:11px;text-align:center;margin-top:4px}
+.hell-lock.unlocked{display:none}
+
+/* ===== 通用弹窗 ===== */
+.overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.85);flex-direction:column;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.overlay .emoji{font-size:clamp(55px,11vw,90px);animation:popBounce .6s ease-out}
+@keyframes popBounce{0%{transform:scale(0)rotate(-20deg);opacity:0}60%{transform:scale(1.2)rotate(5deg)}100%{transform:scale(1)rotate(0);opacity:1}}
+.overlay .title{font-size:clamp(20px,5vw,32px);font-weight:bold;margin:14px 0 4px;text-align:center}
+.overlay .sub{color:#aaa;font-size:clamp(12px,2.5vw,16px);margin-bottom:20px;text-align:center;padding:0 20px;line-height:1.6}
+.overlay .act-btn{padding:13px 36px;border:none;border-radius:28px;color:#fff;font-size:clamp(15px,3vw,19px);font-weight:bold;cursor:pointer;letter-spacing:1px;min-height:46px;transition:transform .15s}
+.overlay .act-btn:active{transform:scale(.94)}
+
+#bankruptOverlay .title{color:#ff5252;text-shadow:0 0 20px rgba(255,50,50,.5)}
+#bankruptOverlay .act-btn{background:linear-gradient(135deg,#ff9800,#f44336);box-shadow:0 4px 20px rgba(255,80,20,.4)}
+
+#victoryOverlay .title{color:#ffd740;text-shadow:0 0 30px rgba(255,215,0,.6)}
+#victoryOverlay .sub{color:#ccc}
+#victoryOverlay .act-btn{background:linear-gradient(135deg,#ffd740,#ff9800);color:#000;box-shadow:0 4px 25px rgba(255,200,0,.5)}
+#victoryOverlay .hell-unlock{color:#ce93d8;font-size:clamp(13px,2.2vw,16px);font-weight:bold;margin:12px 0 0;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.7}50%{opacity:1}}
+#victoryOverlay .hell-unlock.hidden{display:none}
+#victoryOverlay .stars{font-size:clamp(30px,6vw,50px);letter-spacing:6px}
+
+/* ===== 牌桌 ===== */
+.table-wrap{position:relative;width:min(98vw,98dvw);height:min(92vh,92dvh);max-width:1100px;display:flex;align-items:center;justify-content:center}
+@media(orientation:portrait){.table-wrap{width:min(98vw,98dvw);height:min(60vh,60dvh)}}
+@media(orientation:portrait) and (max-width:480px){.table-wrap{height:min(52vh,52dvh)}}
+
+.table-outer{position:absolute;inset:-2%;border-radius:50%;
+  background:linear-gradient(145deg,#5d2e0c 0%,#3e1a00 40%,#6b3a10 60%,#2a1000 100%);
+  box-shadow:0 0 0 3px #1a0800,0 0 0 8px #8b5a2b,0 0 0 12px #1a0800,0 0 0 16px #6b3a10,0 0 80px rgba(0,0,0,0.6),inset 0 0 30px rgba(255,200,100,0.05)}
+
+.table{position:absolute;inset:5%;border-radius:50%;
+  background:radial-gradient(ellipse at 40% 35%,#228b22 0%,#1a6b1a 20%,#0d4a0d 50%,#072807 100%);
+  border:2px solid rgba(255,255,255,0.06);
+  box-shadow:inset 0 0 80px rgba(0,0,0,0.5),inset 0 0 150px rgba(0,0,0,0.3)}
+.table::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:repeating-conic-gradient(rgba(0,0,0,0.03) 0deg 2deg,transparent 2deg 4deg);pointer-events:none}
+.table-inner{position:absolute;inset:7%;border-radius:50%;border:1.5px dashed rgba(255,255,255,0.05)}
+.cupholder{position:absolute;width:14px;height:14px;border-radius:50%;background:rgba(0,0,0,0.5);border:2px solid rgba(255,255,255,0.08);pointer-events:none;z-index:2}
+.ch1{top:8%;left:8%}.ch2{top:8%;right:8%}.ch3{top:25%;right:4%}.ch4{top:25%;left:4%}
+
+/* 社区牌 */
+.community{position:absolute;top:50%;left:50%;transform:translate(-50%,-70%);display:flex;gap:5px;z-index:5}
+.community .card{width:clamp(34px,5.5vw,58px);height:clamp(48px,7.8vw,82px);border-radius:5px;background:linear-gradient(135deg,#fefefe,#e8e8e8);
+  box-shadow:0 3px 10px rgba(0,0,0,0.5),0 1px 0 rgba(255,255,255,0.3) inset;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:bold;
+  font-size:clamp(13px,2vw,20px);position:relative;transition:transform .25s,opacity .3s}
+.community .card.back{background:linear-gradient(145deg,#1a237e 0%,#283593 25%,#1a3a8e 50%,#0d1b6b 75%,#1a237e 100%);box-shadow:0 2px 6px rgba(0,0,0,0.4)}
+.community .card.back::after{content:'';position:absolute;inset:5px;border:1.5px solid rgba(255,255,255,0.15);border-radius:3px}
+.community .card.back::before{content:'🂠';font-size:clamp(15px,2.5vw,28px);opacity:.25}
+.card .rank{font-size:clamp(12px,1.8vw,18px);line-height:1}
+.card .suit{font-size:clamp(14px,2.2vw,22px);line-height:1}
+.card.red{color:#c62828}.card.black{color:#1a1a1a}
+
+/* 底池 */
+.pot-display{position:absolute;top:50%;left:50%;transform:translate(-50%,45%);color:#fff;font-size:clamp(11px,1.6vw,16px);font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.5);z-index:5;text-align:center;pointer-events:none}
+
+/* 难度标签 */
+.diff-badge{position:fixed;top:4px;left:6px;z-index:300;font-size:clamp(8px,1vw,10px);padding:3px 8px;border-radius:8px;font-weight:bold;color:#fff;pointer-events:none}
+.diff-badge.easy{background:rgba(102,187,106,.8)}
+.diff-badge.medium{background:rgba(255,152,0,.8)}
+.diff-badge.hard{background:rgba(239,83,80,.8)}
+.diff-badge.hell{background:rgba(142,36,170,.8);animation:hellGlow 2s ease-in-out infinite}
+
+/* 座位 */
+.seat{position:absolute;display:flex;flex-direction:column;align-items:center;z-index:10;transform:translate(-50%,-50%);min-width:50px}
+.seat.player{top:auto !important;bottom:1.5%;left:50%;transform:translate(-50%,0)}
+.seat.player .cards-row{order:-1;margin-bottom:5px}
+.seat .name{color:#fff;font-size:clamp(9px,1.1vw,12px);font-weight:bold;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:8px;white-space:nowrap;margin-bottom:1px}
+.seat .name.you{background:linear-gradient(135deg,rgba(255,193,7,0.9),rgba(255,152,0,0.9));color:#000}
+.seat .name.dealer::after{content:'🎯';font-size:10px}
+.seat .name.sb::after{content:'💰';font-size:10px}
+.seat .name.bb::after{content:'💰';font-size:10px}
+.seat .blind-badge{font-size:clamp(8px,0.9vw,10px);padding:1px 6px;border-radius:6px;font-weight:bold;margin-bottom:1px;display:none}
+.seat .blind-badge.sb-badge{display:block;background:rgba(255,193,7,0.7);color:#000}
+.seat .blind-badge.bb-badge{display:block;background:rgba(244,67,54,0.7);color:#fff}
+.seat .chips{color:#ffd54f;font-size:clamp(8px,1vw,11px);font-weight:bold;margin-bottom:1px}
+.seat .bet-amount{color:#ffab00;font-size:clamp(8px,0.9vw,10px);font-weight:bold;min-height:12px}
+.seat .cards-row{display:flex;gap:3px}
+.seat .card{width:clamp(28px,4.3vw,44px);height:clamp(40px,6.2vw,62px);border-radius:4px;
+  background:linear-gradient(145deg,#fefefe,#e8e8e8);box-shadow:0 2px 6px rgba(0,0,0,0.4),0 1px 0 rgba(255,255,255,0.25) inset;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:bold;position:relative}
+.seat .card.back{background:linear-gradient(145deg,#1a237e 0%,#283593 25%,#1a3a8e 50%,#0d1b6b 75%,#1a237e 100%)}
+.seat .card.back::after{content:'';position:absolute;inset:3px;border:1px solid rgba(255,255,255,0.15);border-radius:2px}
+.seat .card.folded{opacity:.3;filter:grayscale(.8)}
+.seat .card .rank{font-size:clamp(10px,1.2vw,14px);line-height:1}
+.seat .card .suit{font-size:clamp(11px,1.5vw,17px);line-height:1}
+.seat .card.red{color:#c62828}.seat .card.black{color:#1a1a1a}
+.seat .status-badge{font-size:clamp(7px,0.9vw,10px);padding:1px 6px;border-radius:6px;margin-top:1px;font-weight:bold;display:none}
+.seat .status-badge.fold{display:block;background:rgba(158,158,158,0.8);color:#fff}
+.seat .status-badge.call{display:block;background:rgba(76,175,80,0.8);color:#fff}
+.seat .status-badge.raise{display:block;background:rgba(244,67,54,0.8);color:#fff}
+.seat .status-badge.allin{display:block;background:rgba(255,152,0,0.9);color:#fff}
+.seat.active .name{box-shadow:0 0 12px rgba(255,193,7,0.6);animation:activeGlow .8s ease-in-out infinite}
+@keyframes activeGlow{0%,100%{box-shadow:0 0 6px rgba(255,193,7,.35)}50%{box-shadow:0 0 24px rgba(255,193,7,.9)}}
+
+/* 操作按钮 */
+.actions{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:200;
+  background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  padding:6px 8px;border-radius:28px;border:1px solid rgba(255,255,255,0.1);
+  max-width:96vw;overflow-x:auto;flex-wrap:nowrap;justify-content:center;
+  -webkit-overflow-scrolling:touch}
+.actions button{padding:8px 11px;border:none;border-radius:20px;
+  font-size:12px;font-weight:bold;cursor:pointer;color:#fff;letter-spacing:0;white-space:nowrap;
+  min-height:36px;transition:transform .1s,opacity .1s;flex-shrink:0}
+.actions button:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(.5)}
+.actions button:not(:disabled):active{transform:scale(.92)}
+.btn-fold{background:linear-gradient(135deg,#546e7a,#37474f)}
+.btn-check{background:linear-gradient(135deg,#42a5f5,#1565c0)}
+.btn-call{background:linear-gradient(135deg,#66bb6a,#2e7d32)}
+.btn-raise{background:linear-gradient(135deg,#ef5350,#b71c1c)}
+.btn-allin{background:linear-gradient(135deg,#ff9800,#e65100)}
+
+.message{position:fixed;top:6px;left:50%;transform:translateX(-50%);color:#fff;
+  font-size:clamp(13px,1.8vw,20px);font-weight:bold;z-index:300;
+  text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;text-align:center;
+  background:rgba(0,0,0,.55);padding:5px 18px;border-radius:18px;max-width:90vw;transition:opacity .3s}
+.new-game-btn{position:fixed;top:6px;right:6px;z-index:300;padding:8px 16px;
+  background:linear-gradient(135deg,#ff9800,#f57c00);color:#fff;border:none;border-radius:18px;
+  font-size:clamp(11px,1.3vw,14px);font-weight:bold;cursor:pointer;display:none;min-height:34px}
+.new-game-btn:active{transform:scale(.94)}.new-game-btn.show{display:block}
+
+@keyframes winGlow{0%,100%{box-shadow:0 0 18px rgba(255,215,0,.5)}50%{box-shadow:0 0 45px rgba(255,215,0,1),0 0 80px rgba(255,215,0,.4)}}
+.seat.winner .name{animation:winGlow .5s ease-in-out 3;background:rgba(255,215,0,0.9);color:#000}
+
+@media(max-width:600px){.table-outer{box-shadow:0 0 0 2px #1a0800,0 0 0 6px #8b5a2b,0 0 0 9px #1a0800,0 0 0 12px #6b3a10,0 0 50px rgba(0,0,0,.5)}.actions{gap:3px;padding:5px 6px}.actions button{min-height:34px;padding:7px 9px;font-size:11px}}
+#showdownBox{position:fixed;left:50%;top:7%;transform:translateX(-50%);z-index:9998;width:min(92vw,430px);max-height:76vh;overflow-y:auto;background:rgba(10,5,0,.94);border:1px solid rgba(255,213,79,.55);border-radius:14px;padding:14px 18px;min-width:260px;max-width:88vw;color:#fff;font-family:"Microsoft YaHei","PingFang SC",sans-serif;box-shadow:0 8px 40px rgba(0,0,0,.8)}
+#showdownBox.hidden{display:none}
+#showdownBox{overflow-x:hidden}
+#showdownBox .sd-title{color:#ffd54f;font-size:14px;font-weight:bold;text-align:center;margin-bottom:10px;letter-spacing:1px}
+#showdownBox .sd-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.08);font-size:13px;flex-wrap:nowrap;min-width:0}
+#showdownBox .sd-name{flex:0 1 34%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#showdownBox .sd-row.win{color:#ffd54f;font-weight:bold}
+#showdownBox .sd-hand{flex:1 1 auto;min-width:0;text-align:right;font-size:clamp(11px,3.2vw,16px);letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#showdownBox .sd-red{color:#ff6b6b}
+#showdownBox .sd-tag{font-size:clamp(9px,2.4vw,11px);opacity:.85;margin-left:5px;white-space:nowrap}
+#langBtn{position:fixed;top:26px;left:6px;z-index:99999;background:#ffb300;color:#1a0c00;border:none;border-radius:14px;padding:6px 14px;font-size:12px;font-weight:bold;font-family:"Microsoft YaHei","PingFang SC",sans-serif;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.6);-webkit-tap-highlight-color:transparent}
+#langBtn:active{transform:scale(.96)}
+@media(max-width:520px){#showdownBox{padding:10px 12px}#showdownBox .sd-row{font-size:12px}#showdownBox .sd-wtext{display:none}}
+#musicBtn{position:fixed;top:56px;left:6px;z-index:99999;background:rgba(0,0,0,.45);color:#ffd54f;border:1px solid rgba(255,213,79,.35);border-radius:14px;padding:4px 11px;font-size:13px;line-height:1.2;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#musicBtn:active{transform:scale(.96)}
+#musicBtn.on{background:#ffb300;color:#1a0c00;border-color:#ffb300}
+</style>
+</head>
+<body>
+
+<button id="langBtn" onclick="toggleLang()">中文</button>
+<button id="musicBtn" onclick="musicToggle()" title="Music: off">♪</button>
+
+<div id="rotateHint" data-t="rotate">🔄 Better in landscape</div>
+
+<!-- 难度选择 -->
+<div class="menu-overlay" id="menuOverlay">
+  <div class="menu-title" data-t="menuTitle">🎴 Texas Hold'em</div>
+  <div class="menu-sub" data-t="menuSub">1 Human vs 5 AI bots</div>
+  <div class="menu-btns">
+    <button class="menu-btn btn-easy" data-t="easy" onclick="startGame('easy')">🌱 EASY</button>
+    <button class="menu-btn btn-medium" data-t="medium" onclick="startGame('medium')">⚡ MEDIUM</button>
+    <button class="menu-btn btn-hard" data-t="hard" onclick="startGame('hard')">🔥 HARD</button>
+    <button class="menu-btn btn-hell" id="btnHell" data-t="hell" onclick="startGame('hell')">💀 HELL</button>
+  </div>
+  <div class="hell-lock" id="hellLock" data-t="hellLock">🔒 Unlock by beating Hard</div>
+</div>
+
+<!-- 破产弹窗 -->
+<div class="overlay" id="bankruptOverlay">
+  <div class="emoji">😭💸</div>
+  <div class="title" data-t="brokeTitle">You're broke!</div>
+  <div class="sub" data-t="brokeSub">Not even your underwear left…</div>
+  <button class="act-btn" data-t="restart" onclick="restartFromOverlay()">🔄 Restart</button>
+</div>
+
+<!-- 胜利弹窗 -->
+<div class="overlay" id="victoryOverlay">
+  <div class="emoji">🏆</div>
+  <div class="stars" id="victoryStars">⭐⭐⭐</div>
+  <div class="title" id="victoryTitle" data-t="victory">🏆 You beat it!</div>
+  <div class="sub" id="victorySub"></div>
+  <div class="hell-unlock hidden" id="hellUnlock" data-t="hellUnlock">💀 Hell mode unlocked!</div>
+  <button class="act-btn" data-t="playAgain" onclick="restartFromOverlay()">🔄 Play Again</button>
+</div>
+
+<!-- 游戏中UI -->
+<div class="diff-badge hidden" id="diffBadge"></div>
+<div class="message" id="msg"></div>
+<button class="new-game-btn" id="newGameBtn" data-t="nextHand" onclick="newHand()">🔄 Next Hand</button>
+
+<div class="table-wrap" id="tableWrap" style="display:none">
+  <div class="table-outer">
+    <div class="table"><div class="table-inner"></div>
+      <div class="cupholder ch1"></div><div class="cupholder ch2"></div>
+      <div class="cupholder ch3"></div><div class="cupholder ch4"></div>
+    </div>
+  </div>
+  <div class="community" id="community"></div>
+  <div class="pot-display" id="potDisplay"></div>
+  <div id="seats"></div>
+</div>
+
+<!-- 操作按钮 -->
+<div id="showdownBox" class="hidden"></div>
+
+<div class="actions" id="actions">
+  <button class="btn-fold" id="btnFold" data-t="fold" onclick="playerAction('fold')">Fold</button>
+  <button class="btn-check" id="btnCheck" data-t="check" onclick="playerAction('check')">Check</button>
+  <button class="btn-call" id="btnCall" data-t="call" onclick="playerAction('call')">Call</button>
+  <button class="btn-raise" id="btnRaise" data-t="raise" onclick="playerAction('raise')">Raise</button>
+  <button class="btn-allin" id="btnAllin" onclick="playerAction('allin')">All-in</button>
+</div>
+
+<script>
+// ===== 多语言 =====
+let LANG='en';
+const HAND_NAMES={
+  en:['High Card','One Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush','Royal Flush'],
+  zh:['高牌','一对','两对','三条','顺子','同花','葫芦','四条','同花顺','皇家同花顺']
+};
+const T={
+  en:{
+    title:"Texas Hold'em 🎴", rotate:'🔄 Better in landscape',
+    menuTitle:'🎴 Texas Hold\'em', menuSub:'1 Human vs 5 AI bots',
+    easy:'🌱 EASY', medium:'⚡ MEDIUM', hard:'🔥 HARD', hell:'💀 HELL',
+    hellLock:'🔒 Unlock by beating Hard',
+    brokeTitle:"You're broke!", brokeSub:'Not even your underwear left…',
+    restart:'🔄 Restart', playAgain:'🔄 Play Again',
+    victory:'🏆 You beat it!', hellWin:'🔥 Hell Conqueror!', hellUnlock:'💀 Hell mode unlocked!',
+    nextHand:'🔄 Next Hand', fold:'Fold', check:'Check', call:'Call', raise:'Raise', allin:'All-in',
+    pot:'Pot', sb:'Small Blind', bb:'Big Blind',
+    folded:'Folded', called:'Called', raised:'Raised', bet:'Bet:',
+    wait:'⏳ Waiting…',
+    you:'⭐ You',
+    bots:{ming:'Ming',jie:'Jay',fang:'Fang',ma:'Max',kun:'Kun'},
+    diff:{easy:'Easy',medium:'Medium',hard:'Hard',hell:'Hell'},
+    mode:d=>d+' mode',
+    victorySub:(d,c)=>d+' mode cleared · Chips 💰'+c,
+    callN:n=>'Call '+n, raiseTo:n=>'Raise to '+n,
+    youWin:p=>'🎉 You win '+p+' chips!',
+    youWinHand:(p,h)=>'🎉 You win '+p+' chips! ('+h+')',
+    botWin:(n,p)=>n+' wins '+p+' chips.',
+    botWinHand:(n,p,h)=>n+' wins '+p+' chips. ('+h+')',
+    clickNext:"🎴 Tap “Next Hand” to start!",
+    sdTitle:'SHOWDOWN', sdWinner:'WINNER'
+  },
+  zh:{
+    title:'德州扑克 🎴', rotate:'🔄 横屏体验更佳',
+    menuTitle:'🎴 德州扑克', menuSub:'1 真人 vs 5 AI 机器人',
+    easy:'🌱 简单', medium:'⚡ 中等', hard:'🔥 困难', hell:'💀 地狱',
+    hellLock:'🔒 通关「困难」模式后解锁',
+    brokeTitle:'你输光啦！', brokeSub:'连裤衩都不剩了…',
+    restart:'🔄 重新开始', playAgain:'🔄 再来一局',
+    victory:'🏆 恭喜通关！', hellWin:'🔥 地狱征服者！', hellUnlock:'💀 地狱模式已解锁！',
+    nextHand:'🔄 下一局', fold:'弃牌', check:'过牌', call:'跟注', raise:'加注', allin:'All-in',
+    pot:'底池', sb:'小盲注', bb:'大盲注',
+    folded:'弃牌', called:'跟注', raised:'加注', bet:'下注:',
+    wait:'⏳ 等待…',
+    you:'⭐ 你',
+    bots:{ming:'大明',jie:'阿杰',fang:'老方',ma:'小马',kun:'坤哥'},
+    diff:{easy:'简单',medium:'中等',hard:'困难',hell:'地狱'},
+    mode:d=>d+'模式',
+    victorySub:(d,c)=>d+'模式通关 · 剩余筹码 💰'+c,
+    callN:n=>'跟'+n, raiseTo:n=>'加到'+n,
+    youWin:p=>'🎉 你赢了 '+p+' 筹码！',
+    youWinHand:(p,h)=>'🎉 你赢了 '+p+' 筹码！('+h+')',
+    botWin:(n,p)=>n+' 赢了 '+p+' 筹码！',
+    botWinHand:(n,p,h)=>n+' 赢了 '+p+' 筹码！('+h+')',
+    clickNext:'🎴 点击「下一局」开始！',
+    sdTitle:'摊牌', sdWinner:'赢家'
+  }
+};
+function t(){return T[LANG]}
+function handName(idx){return HAND_NAMES[LANG][idx+1]}
+function nameOf(p){return p.isHuman?t().you:'· '+t().bots[p.name]}
+function applyLang(){
+  document.documentElement.lang=(LANG==='en'?'en':'zh-CN');
+  document.title=t().title;
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    const k=el.getAttribute('data-t');
+    if(t()[k]!==undefined)el.textContent=t()[k];
+  });
+  const lb=document.getElementById('langBtn');
+  if(lb)lb.textContent=(LANG==='en'?'中文':'EN');
+  if(game)render();
+}
+function toggleLang(){
+  LANG=(LANG==='en'?'zh':'en');
+  try{localStorage.setItem('th_lang',LANG)}catch(e){}
+  applyLang();
+  if(!game)showMsg('');
+}
+
+// ===== 音效 =====
+let audioCtx=null,audioOk=false;
+try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioOk=true}catch(e){audioOk=false}
+function playNoise(dur,vol,type,lo,hi){
+  if(!audioOk)return;try{let sr=audioCtx.sampleRate,len=sr*dur,buf=audioCtx.createBuffer(1,len,sr),d=buf.getChannelData(0);
+  for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*vol*Math.max(0,1-i/len);
+  let s=audioCtx.createBufferSource();s.buffer=buf;let f=audioCtx.createBiquadFilter();f.type=type||'bandpass';f.frequency.value=lo||800;if(hi)f.Q.value=hi;
+  s.connect(f);f.connect(audioCtx.destination);s.start()}catch(e){}}
+function sndChip(){playNoise(.03,.22,'highpass',3000,.8)}
+function sndCard(){playNoise(.06,.18,'bandpass',400,1.5)}
+function sndFold(){playNoise(.1,.25,'lowpass',200,2)}
+function sndCheck(){playNoise(.04,.12,'bandpass',600,2)}
+function sndWin(jingle){if(!audioOk)return;try{let t=audioCtx.currentTime;if(jingle)[523,659,784].forEach((hz,i)=>{let o=audioCtx.createOscillator();o.type='sine';o.frequency.value=hz;let g=audioCtx.createGain();g.gain.setValueAtTime(0,t+i*.12);g.gain.linearRampToValueAtTime(.12,t+i*.12+.02);g.gain.exponentialRampToValueAtTime(.001,t+i*.12+.3);o.connect(g);g.connect(audioCtx.destination);o.start(t+i*.12);o.stop(t+i*.12+.35)});else[440,554,660].forEach((hz,i)=>{let o=audioCtx.createOscillator();o.type='sine';o.frequency.value=hz;let g=audioCtx.createGain();g.gain.setValueAtTime(0,t+i*.1);g.gain.linearRampToValueAtTime(.15,t+i*.1+.02);g.gain.exponentialRampToValueAtTime(.001,t+i*.1+.25);o.connect(g);g.connect(audioCtx.destination);o.start(t+i*.1);o.stop(t+i*.1+.3)})}catch(e){}}
+// ===== 背景音乐（程序生成，无外部文件）=====
+let musicOn=false,musicTimer=null,musicMaster=null,musicLoopMs=0;
+const MUSIC_BPM=72;
+function mtof(m){return 440*Math.pow(2,(m-69)/12)}
+function musicInit(){
+  if(!audioOk)return false;
+  if(musicMaster)return true;
+  musicMaster=audioCtx.createGain();musicMaster.gain.value=0;
+  let lp=audioCtx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1500;
+  let dly=audioCtx.createDelay(1.0);dly.delayTime.value=0.34;
+  let fb=audioCtx.createGain();fb.gain.value=0.26;
+  let wet=audioCtx.createGain();wet.gain.value=0.32;
+  musicMaster.connect(lp);lp.connect(audioCtx.destination);
+  lp.connect(dly);dly.connect(fb);fb.connect(dly);dly.connect(wet);wet.connect(lp);
+  return true;
+}
+function mnote(t,midi,dur,gain,type){
+  try{
+    let o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type||'sine';o.frequency.value=mtof(midi);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+Math.min(0.6,dur*0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(musicMaster);o.start(t);o.stop(t+dur+0.05);
+  }catch(e){}
+}
+const MUSIC_BARS=[
+  {pad:[50,53,57,60,64],bass:38,arp:[53,57,60,64,65,64,60,57]},
+  {pad:[53,57,60,64],bass:41,arp:[57,60,64,67,69,67,64,60]},
+  {pad:[57,60,64,67],bass:45,arp:[60,64,67,69,72,69,67,64]},
+  {pad:[50,53,57,60,64],bass:38,arp:[69,64,60,57,53,50,45,50]}
+];
+function musicLoop(){
+  if(!musicOn||!musicMaster)return;
+  try{
+    let beat=60/MUSIC_BPM,t0=audioCtx.currentTime+0.06;
+    MUSIC_BARS.forEach((b,bi)=>{
+      let tb=t0+bi*4*beat;
+      b.pad.forEach(m=>mnote(tb,m,4*beat,0.028,'sine'));
+      mnote(tb,b.bass,4*beat,0.050,'sine');
+      for(let i=0;i<8;i++){
+        mnote(tb+i*(beat/2),b.arp[i],beat*0.85,(i%2===0?0.038:0.026),'triangle');
+      }
+    });
+    musicLoopMs=16*beat*1000;
+    musicTimer=setTimeout(musicLoop,musicLoopMs-150);
+  }catch(e){}
+}
+function musicToggle(){
+  if(!audioOk)return;
+  if(!musicInit())return;
+  let btn=document.getElementById('musicBtn');
+  if(!musicOn){
+    musicOn=true;
+    try{audioCtx.resume&&audioCtx.resume()}catch(e){}
+    let now=audioCtx.currentTime;
+    musicMaster.gain.cancelScheduledValues(now);
+    musicMaster.gain.setValueAtTime(0.0001,now);
+    musicMaster.gain.exponentialRampToValueAtTime(1,now+2.0);
+    musicLoop();
+    if(btn){btn.classList.add('on');btn.title='Music: on'}
+  }else{
+    musicOn=false;
+    if(musicTimer){clearTimeout(musicTimer);musicTimer=null}
+    let now=audioCtx.currentTime;
+    musicMaster.gain.cancelScheduledValues(now);
+    musicMaster.gain.setValueAtTime(Math.max(musicMaster.gain.value,0.0001),now);
+    musicMaster.gain.exponentialRampToValueAtTime(0.0001,now+1.0);
+    if(btn){btn.classList.remove('on');btn.title='Music: off'}
+  }
+}
+
+function sndLose(){if(!audioOk)return;try{let t=audioCtx.currentTime;[400,350,300].forEach((hz,i)=>{let o=audioCtx.createOscillator();o.type='triangle';o.frequency.value=hz;let g=audioCtx.createGain();g.gain.setValueAtTime(0,t+i*.12);g.gain.linearRampToValueAtTime(.1,t+i*.12+.02);g.gain.exponentialRampToValueAtTime(.001,t+i*.12+.3);o.connect(g);g.connect(audioCtx.destination);o.start(t+i*.12);o.stop(t+i*.12+.35)})}catch(e){}}
+
+// ===== 牌组 =====
+const SUITS=['♠','♥','♦','♣'],RANKS=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RV=Object.fromEntries(RANKS.map((r,i)=>[r,i+2]));
+function createDeck(){let d=[];for(let s of SUITS)for(let r of RANKS)d.push({rank:r,suit:s});return shuf(d)}
+function shuf(a){let b=[...a];for(let i=b.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+
+// ===== 手牌评估 =====
+function* combos(arr,k,st=0,ch=[]){if(ch.length===k){yield[...ch];return}for(let i=st;i<arr.length;i++){ch.push(arr[i]);yield*combos(arr,k,i+1,ch);ch.pop()}}
+function evalHand(hole,com){let all=[...hole,...com],best=null;for(let c of combos(all,5)){let r=eval5(c);if(!best||compareHands(r,best)>0)best=r}return best}
+function compareHands(a,b){if(a.rank!==b.rank)return a.rank-b.rank;for(let i=0;i<Math.min(a.tie.length,b.tie.length);i++){if(a.tie[i]!==b.tie[i])return a.tie[i]-b.tie[i]}return 0}
+function eval5(cs){
+  let s=[...cs].sort((a,b)=>RV[b.rank]-RV[a.rank]),vs=s.map(c=>RV[c.rank]),flush=s.every(c=>c.suit===s[0].suit);
+  let uniq=[...new Set(vs)].sort((a,b)=>b-a),isStr=false,strHi=0;
+  if(uniq.length===5){if(uniq[0]-uniq[4]===4){isStr=true;strHi=uniq[0]}else if(uniq[0]===14&&uniq[1]===5&&uniq[4]===2){isStr=true;strHi=5}}
+  let cnt={};vs.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+  let grp=Object.entries(cnt).map(([v,c])=>[+v,c]).sort((a,b)=>b[1]-a[1]||b[0]-a[0]);
+  function ks(ex){return vs.filter(v=>!ex.includes(v)).sort((a,b)=>b-a)}
+  if(flush&&isStr)return strHi===14?{rank:8,tie:[14],name:8}:{rank:7,tie:[strHi],name:7};
+  if(grp[0][1]===4){let qv=grp[0][0],k=vs.find(v=>v!==qv);return{rank:6,tie:[qv,k],name:6}}
+  if(grp[0][1]===3&&grp[1]&&grp[1][1]>=2)return{rank:5,tie:[grp[0][0],grp[1][0]],name:5};
+  if(flush)return{rank:4,tie:vs,name:4};
+  if(isStr)return{rank:3,tie:[strHi],name:3};
+  if(grp[0][1]===3){let tk=ks([grp[0][0]]);return{rank:2,tie:[grp[0][0],...tk],name:2}}
+  if(grp[0][1]===2&&grp[1]&&grp[1][1]===2){let hi2=Math.max(grp[0][0],grp[1][0]),lo2=Math.min(grp[0][0],grp[1][0]),k=ks([grp[0][0],grp[1][0]]);return{rank:1,tie:[hi2,lo2,...k],name:1}}
+  if(grp[0][1]===2){let tk=ks([grp[0][0]]);return{rank:0,tie:[grp[0][0],...tk],name:0}}
+  return{rank:-1,tie:vs,name:-1}
+}
+
+function preflopStrength(hole){
+  let[a,b]=hole.map(c=>RV[c.rank]).sort((x,y)=>y-x),suited=hole[0].suit===hole[1].suit,pair=a===b,dist=a-b;
+  if(pair)return a>=12?.92:a>=9?.8:a>=7?.65:.5;
+  if(a===14){if(b===13)return suited?.85:.78;if(b>=10)return suited?.72:.62;return suited?.55:.45}
+  if(a>=12&&b>=10)return suited?.7:.58;
+  if(dist<=2&&a>=9)return suited?.6:.48;if(dist<=3&&a<=9&&b>=6)return suited?.48:.35;
+  if(suited&&a<=8)return.38;return a>=10?.4:.25;
+}
+
+// ===== AI 与难度系统 =====
+const DIFFICULTY={
+  easy:{tightMul:.7,aggMul:.6,bluffMul:.5,iqMul:.5,key:'easy',badgeCss:'easy'},
+  medium:{tightMul:1,aggMul:1,bluffMul:1,iqMul:1,key:'medium',badgeCss:'medium'},
+  hard:{tightMul:1.3,aggMul:1.25,bluffMul:1.3,iqMul:1.3,key:'hard',badgeCss:'hard'},
+  hell:{tightMul:1.6,aggMul:1.5,bluffMul:1.6,iqMul:1.6,key:'hell',badgeCss:'hell'},
+};
+let currentDifficulty='medium';
+let hardCleared=false;
+
+const BOT_NAMES=['ming','jie','fang','ma','kun'];
+const BOT_PROFILES={
+  ming:{tight:.65,agg:.75,bluff:.12,iq:.8},
+  jie:{tight:.35,agg:.85,bluff:.28,iq:.72},
+  fang:{tight:.7,agg:.25,bluff:.04,iq:.6},
+  ma:{tight:.45,agg:.6,bluff:.32,iq:.78},
+  kun:{tight:.3,agg:.9,bluff:.35,iq:.55},
+};
+
+function botDecide(p,g){
+  let base=BOT_PROFILES[p.name]||{tight:.5,agg:.5,bluff:.15,iq:.65};
+  let dm=DIFFICULTY[currentDifficulty];
+  let pr={
+    tight:Math.min(.98,Math.max(.05,base.tight*dm.tightMul)),
+    agg:Math.min(.98,Math.max(.05,base.agg*dm.aggMul)),
+    bluff:Math.min(.98,Math.max(.02,base.bluff*dm.bluffMul)),
+    iq:Math.min(.98,Math.max(.1,base.iq*dm.iqMul)),
+  };
+  let call=g.currentBet-p.bet,n=g.players.length;
+  let posIdx=g.players.indexOf(p),distFromDealer=(posIdx-g.dealerIndex+n)%n,isLatePos=distFromDealer>=n-2;
+
+  let str;
+  if(g.communityCards.length===0){
+    str=preflopStrength(p.holeCards);
+  }else{
+    let r=evalHand(p.holeCards,g.communityCards);
+    str=(r.rank+1)/9;
+    if(r.rank<=0){
+      let maxComm=Math.max(...g.communityCards.map(cc=>RV[cc.rank]));
+      let overcards=p.holeCards.filter(c=>RV[c.rank]>maxComm).length;
+      str+=overcards*.06;
+    }
+  }
+  if(isLatePos)str+=.05;
+  let activeOpps=g.players.filter(pp=>!pp.folded&&!pp.allIn&&pp!==p).length;
+  if(activeOpps<=2)str+=.06;
+  str+=(Math.random()-.5)*.12*(1-pr.iq);
+
+  let potOdds=call/(g.pot+call+.01);
+  let spr=(p.chips-call)/(g.pot+.01);
+
+  if(str>.9){
+    let allinChance=pr.agg*.5;
+    if(spr<2)allinChance*=.7;
+    if(Math.random()<allinChance)return{action:'allin',amount:p.chips};
+    let mult=3+Math.floor(Math.random()*6);
+    if(spr<3)mult=1+Math.floor(Math.random()*3);
+    return{action:'raise',amount:Math.min(p.chips,g.currentBet+g.bigBlind*mult)};
+  }
+  if(str>.72){
+    if(Math.random()<pr.agg*.6)return{action:'raise',amount:Math.min(p.chips,g.currentBet+g.bigBlind*(2+Math.floor(Math.random()*3)))};
+    return call===0?{action:'check',amount:0}:{action:'call',amount:Math.min(call,p.chips)};
+  }
+  if(str>.48){
+    if(call===0){
+      if(Math.random()<pr.agg*.35)return{action:'raise',amount:Math.min(p.chips,g.bigBlind*(1+Math.floor(Math.random()*2)))};
+      return{action:'check',amount:0};
+    }
+    if(potOdds<.33||(Math.random()<pr.bluff&&isLatePos))return{action:'call',amount:Math.min(call,p.chips)};
+    return{action:'fold',amount:0};
+  }
+  if(call===0){
+    if(Math.random()<pr.bluff*.7&&isLatePos)return{action:'raise',amount:Math.min(p.chips,g.bigBlind*(1+Math.floor(Math.random()*2)))};
+    return{action:'check',amount:0};
+  }
+  if(Math.random()<pr.bluff*.35&&potOdds<.22)return{action:'call',amount:Math.min(call,p.chips)};
+  return{action:'fold',amount:0};
+}
+
+// ===== 游戏状态 =====
+let game=null;
+function initGame(){
+  let pls=[{name:'you',chips:2000,holeCards:[],bet:0,folded:false,isHuman:true,allIn:false,lastAction:null}];
+  BOT_NAMES.forEach(n=>pls.push({name:n,chips:2000,holeCards:[],bet:0,folded:false,isHuman:false,allIn:false,lastAction:null}));
+  game={players:pls,deck:[],communityCards:[],pot:0,currentBet:0,dealerIndex:0,currentPlayerIndex:0,
+    smallBlind:10,bigBlind:20,phase:'idle',roundComplete:false,lastRaiser:null,actionsThisRound:0,winner:null};
+}
+
+// ===== 座位 =====
+function seatPos(n){let rx=36,ry=32,cx=50,cy=50,bots=[],start=-160,end=-20;
+  for(let i=0;i<n-1;i++){let a=(start+(end-start)*i/(n-2||1))*Math.PI/180;bots.push({x:cx+rx*Math.cos(a),y:cy+ry*Math.sin(a),isP:false})}
+  return[...bots,{x:50,y:93,isP:true}]}
+
+// ===== 渲染 =====
+function render(){
+  let n=game.players.length,pos=seatPos(n),human=game.players.find(p=>p.isHuman);
+  let ord=[...game.players.filter(p=>!p.isHuman),human],opos=[...pos.filter(p=>!p.isP),pos.find(p=>p.isP)];
+  let html='';
+  for(let i=0;i<Math.min(ord.length,opos.length);i++){
+    let p=ord[i],pt=opos[i],idx=game.players.indexOf(p);
+    let isDealer=idx===game.dealerIndex,isSB=idx===(game.dealerIndex+1)%n,isBB=idx===(game.dealerIndex+2)%n;
+    let isActive=game.players[game.currentPlayerIndex]===p,isWinner=game.winner===idx;
+    let nm='name'+(p.isHuman?' you':'')+(isDealer?' dealer':'')+(isSB?' sb':'')+(isBB?' bb':'');
+    let sc='seat'+(p.isHuman?' player':'')+(isActive&&!game.roundComplete?' active':'')+(isWinner?' winner':'');
+    let bbHtml='';
+    if(isSB)bbHtml='<div class="blind-badge sb-badge">'+t().sb+'</div>';
+    else if(isBB)bbHtml='<div class="blind-badge bb-badge">'+t().bb+'</div>';
+    let cardsHtml='';
+    if(p.holeCards.length)for(let c of p.holeCards){
+      if(p.folded)cardsHtml+=`<div class="card back folded"></div>`;
+      else if(p.isHuman||game.phase==='showdown'){
+        let cls=(c.suit==='♥'||c.suit==='♦')?'red':'black';
+        cardsHtml+=`<div class="card ${cls}"><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span></div>`;
+      }else cardsHtml+=`<div class="card back"></div>`;
+    }
+    let st='';
+    if(p.folded)st='<div class="status-badge fold">'+t().folded+'</div>';
+    else if(p.allIn)st='<div class="status-badge allin">All-in</div>';
+    else if(p.lastAction==='call')st='<div class="status-badge call">'+t().called+'</div>';
+    else if(p.lastAction==='raise')st='<div class="status-badge raise">'+t().raised+'</div>';
+    else if(p.lastAction==='allin')st='<div class="status-badge allin">All-in</div>';
+    html+=`<div class="${sc}" style="left:${pt.x}%;top:${pt.y}%;">${bbHtml}<div class="${nm}">${nameOf(p)}${isDealer?' 🎯':''}</div><div class="chips">💰 ${p.chips}</div><div class="bet-amount">${p.bet>0?t().bet+p.bet:''}</div><div class="cards-row">${cardsHtml}</div>${st}</div>`;
+  }
+  document.getElementById('seats').innerHTML=html;
+  let comHtml='';
+  for(let i=0;i<5;i++){
+    if(i<game.communityCards.length){
+      let c=game.communityCards[i],cls=(c.suit==='♥'||c.suit==='♦')?'red':'black';
+      comHtml+=`<div class="card ${cls}"><span class="rank">${c.rank}</span><span class="suit">${c.suit}</span></div>`;
+    }else comHtml+='<div class="card back"></div>';
+  }
+  document.getElementById('community').innerHTML=comHtml;
+  document.getElementById('potDisplay').innerHTML='🪙 <span style="font-size:115%">'+t().pot+'</span><br><span style="font-size:110%;color:#ffd54f">'+game.pot+'</span>';
+  renAct();
+}
+
+function renAct(){
+  let a=document.getElementById('actions');
+  if(game.roundComplete||game.phase==='showdown'||game.phase==='idle'){
+    a.style.display='none';return;
+  }
+  let p=game.players[game.currentPlayerIndex];
+  if(!p){a.style.display='none';return}
+
+  a.style.display='';
+
+  // AI回合：显示所有按钮但禁用，提示等待
+  if(!p.isHuman){
+    document.getElementById('btnFold').disabled=true;
+    document.getElementById('btnCheck').disabled=true;
+    document.getElementById('btnCall').disabled=true;
+    document.getElementById('btnRaise').disabled=true;
+    document.getElementById('btnAllin').disabled=true;
+    document.getElementById('btnCheck').style.display='';
+    document.getElementById('btnCall').style.display='';
+    document.getElementById('btnCall').textContent=t().wait;
+    document.getElementById('btnRaise').textContent=t().raise;
+    return;
+  }
+
+  // 玩家回合
+  let call=game.currentBet-p.bet,canCheck=call===0,minR=game.currentBet+game.bigBlind;
+  document.getElementById('btnFold').disabled=false;
+  document.getElementById('btnCheck').disabled=!canCheck;
+  document.getElementById('btnCall').disabled=call===0||call>=p.chips;
+  document.getElementById('btnRaise').disabled=p.chips<=minR;
+  document.getElementById('btnAllin').disabled=p.chips<=0;
+  document.getElementById('btnCheck').style.display=canCheck?'':'none';
+  document.getElementById('btnCall').style.display=canCheck?'none':'';
+  document.getElementById('btnCall').textContent=call>=p.chips?'💀 All-in':t().callN(call);
+  document.getElementById('btnRaise').textContent=t().raiseTo(minR);
+}
+
+// ===== 流程 =====
+function newHand(){
+  hideShowdownBox();
+  if(audioCtx&&audioCtx.state==='suspended')try{audioCtx.resume()}catch(e){}
+  if(!game)initGame();
+  game.players.forEach(p=>{p.holeCards=[];p.bet=0;p.folded=false;p.allIn=false;p.lastAction=null;});
+  game.communityCards=[];game.pot=0;game.currentBet=0;game.phase='preflop';
+  game.roundComplete=false;game.winner=null;game.lastRaiser=null;game.actionsThisRound=0;
+
+  game.players=game.players.filter(p=>p.chips>1);
+  if(!game.players.find(p=>p.isHuman)){showBankrupt();return}
+  if(game.players.filter(p=>!p.isHuman).length===0){showVictory();return}
+  if(currentDifficulty!=='hell'){
+    game.players.forEach(p=>{if(p.chips<game.bigBlind&&!p.isHuman)p.chips=2000;});
+  }
+
+  game.dealerIndex=(game.dealerIndex+1)%game.players.length;
+  game.deck=createDeck();game.players.forEach(p=>p.holeCards=[game.deck.pop(),game.deck.pop()]);
+  let si=(game.dealerIndex+1)%game.players.length,bi=(game.dealerIndex+2)%game.players.length;
+  let sb=game.players[si],bb=game.players[bi];
+  let sa=Math.min(sb.chips,game.smallBlind),ba=Math.min(bb.chips,game.bigBlind);
+  sb.chips-=sa;sb.bet=sa;game.pot+=sa;
+  bb.chips-=ba;bb.bet=ba;game.pot+=ba;
+  game.currentBet=ba;
+  game.currentPlayerIndex=game.players.length===2?game.dealerIndex:(bi+1)%game.players.length;
+  document.getElementById('newGameBtn').classList.remove('show');
+  showMsg('');render();sndCard();nextTurn();
+}
+
+function nextTurn(){
+  if(game.roundComplete)return;
+  let act=game.players.filter(p=>!p.folded&&!p.allIn),nf=game.players.filter(p=>!p.folded);
+  if(nf.length<=1){endRound();return}
+  if(act.length===0){runAllInShowdown();return}
+  let allEq=game.players.filter(p=>!p.folded&&!p.allIn).every(p=>p.bet===game.currentBet||p.allIn);
+  let need=game.players.filter(p=>!p.folded&&!p.allIn).length;
+  if(allEq&&game.actionsThisRound>=need){advancePhase();return}
+  let p=game.players[game.currentPlayerIndex];
+  if(p.folded||p.allIn){advancePlayer();return}
+  if(p.isHuman){render();return}
+  render();
+  setTimeout(()=>{let d=botDecide(p,game);processAction(p,d);},400+Math.random()*800);
+}
+
+function playerAction(act){
+  let p=game.players[game.currentPlayerIndex];if(!p||!p.isHuman)return;
+  let call=game.currentBet-p.bet,dec;
+  switch(act){
+    case'fold':dec={action:'fold',amount:0};break;case'check':dec={action:'check',amount:0};break;
+    case'call':dec={action:'call',amount:Math.min(call,p.chips)};break;
+    case'raise':dec={action:'raise',amount:Math.min(game.currentBet+game.bigBlind,p.chips)};break;
+    case'allin':dec={action:'allin',amount:p.chips};break;
+  }
+  processAction(p,dec);
+}
+
+function processAction(p,d){
+  switch(d.action){
+    case'fold':p.folded=true;p.lastAction='fold';sndFold();break;
+    case'check':p.lastAction='check';game.actionsThisRound++;sndCheck();break;
+    case'call':{let a=Math.min(d.amount,p.chips);p.chips-=a;p.bet+=a;game.pot+=a;p.lastAction='call';game.actionsThisRound++;if(p.chips===0)p.allIn=true;sndChip();break}
+    case'raise':{let a=Math.min(d.amount,p.chips),add=a-p.bet;if(add>0){p.chips-=add;p.bet+=add;game.pot+=add}game.currentBet=p.bet;game.lastRaiser=game.currentPlayerIndex;game.actionsThisRound=0;p.lastAction='raise';if(p.chips===0)p.allIn=true;sndChip();break}
+    case'allin':{let a=p.chips;p.bet+=a;game.pot+=a;p.chips=0;p.allIn=true;p.lastAction='allin';if(p.bet>game.currentBet){game.currentBet=p.bet;game.lastRaiser=game.currentPlayerIndex;game.actionsThisRound=0}else game.actionsThisRound++;sndChip();break}
+  }
+  render();
+  if(checkEnd())return;
+  let nf=game.players.filter(p=>!p.folded),an=game.players.filter(p=>!p.folded&&!p.allIn);
+  if(nf.length<=1){endRound();return}
+  if(an.length===0){runAllInShowdown();return}
+  advancePlayer();
+}
+
+function advancePlayer(){game.currentPlayerIndex=(game.currentPlayerIndex+1)%game.players.length;nextTurn()}
+
+function advancePhase(){
+  game.players.forEach(p=>{p.lastAction=null;p.bet=0});
+  game.currentBet=0;game.actionsThisRound=0;game.lastRaiser=null;
+  let f=game.players.length===2?game.dealerIndex:(game.dealerIndex+1)%game.players.length;
+  while(game.players[f].folded||game.players[f].allIn)f=(f+1)%game.players.length;
+  let act=game.players.filter(p=>!p.folded&&!p.allIn),nf=game.players.filter(p=>!p.folded);
+  if(act.length<=1){if(nf.length>1)runAllInShowdown();else endRound();return}
+  game.currentPlayerIndex=f;
+  switch(game.phase){
+    case'preflop':game.phase='flop';game.communityCards.push(game.deck.pop(),game.deck.pop(),game.deck.pop());showMsg('🃏 Flop!');sndCard();break;
+    case'flop':game.phase='turn';game.communityCards.push(game.deck.pop());showMsg('🔄 Turn!');sndCard();break;
+    case'turn':game.phase='river';game.communityCards.push(game.deck.pop());showMsg('🌊 River!');sndCard();break;
+    case'river':game.phase='showdown';showdown();return;
+  }
+  render();setTimeout(()=>nextTurn(),1000);
+}
+
+function runAllInShowdown(){while(game.communityCards.length<5)game.communityCards.push(game.deck.pop());game.phase='showdown';render();setTimeout(()=>showdown(),1200)}
+
+function endRound(){
+  let w=game.players.find(p=>!p.folded);
+  if(w){w.chips+=game.pot;game.winner=game.players.indexOf(w);showMsg(w.isHuman?t().youWin(game.pot):t().botWin(nameOf(w),game.pot))}
+  game.roundComplete=true;game.phase='showdown';game.players.forEach(p=>p.lastAction=null);
+  render();
+  if(checkEnd())return;
+  document.getElementById('newGameBtn').classList.add('show');document.getElementById('actions').style.display='none';
+}
+
+function showdown(){
+  game.roundComplete=true;game.players.forEach(p=>p.lastAction=null);
+  let cont=game.players.filter(p=>!p.folded);
+  let best=null;
+  cont.forEach(p=>{let r=evalHand(p.holeCards,game.communityCards);if(!best||compareHands(r,best.result)>0)best={player:p,result:r}});
+  if(best){best.player.chips+=game.pot;game.winner=game.players.indexOf(best.player);
+    if(best.player.isHuman)sndWin(false);else sndLose();
+    showMsg(best.player.isHuman?t().youWinHand(game.pot,handName(best.result.name)):t().botWinHand(nameOf(best.player),game.pot,handName(best.result.name)))}
+  render();
+  showShowdownBox(best);
+  if(checkEnd())return;
+  document.getElementById('newGameBtn').classList.add('show');document.getElementById('actions').style.display='none';
+}
+
+function showShowdownBox(best){
+  let box=document.getElementById('showdownBox');
+  if(!box||!best)return;
+  let rows=game.players.filter(p=>!p.folded).map(p=>{
+    let r=evalHand(p.holeCards,game.communityCards);
+    let cards=(p.holeCards||[]).map(c=>{
+      let red=(c.suit==='♥'||c.suit==='♦');
+      return '<span class="'+(red?'sd-red':'')+'">'+c.rank+c.suit+'</span>';
+    }).join(' ');
+    let isWin=(p===best.player);
+    return '<div class="sd-row'+(isWin?' win':'')+'"><div class="sd-name">'+nameOf(p)+'</div><div class="sd-hand">'+cards+'<span class="sd-tag">'+handName(r.name)+'</span>'+(isWin?' <span class="sd-tag">★ <span class="sd-wtext">'+t().sdWinner+'</span></span>':'')+'</div></div>';
+  }).join('');
+  box.innerHTML='<div class="sd-title">'+t().sdTitle+'</div>'+rows;
+  box.classList.remove('hidden');
+}
+
+function hideShowdownBox(){let b=document.getElementById('showdownBox');if(b)b.classList.add('hidden')}
+
+// ===== 结束检测 =====
+function checkEnd(){
+  let human=game.players.find(p=>p.isHuman);
+  let bots=game.players.filter(p=>!p.isHuman);
+  if(!human||human.chips<=1){showBankrupt();return true}
+  if(bots.every(b=>b.chips<=1)){showVictory();return true}
+  return false;
+}
+
+// ===== 弹窗 =====
+function showBankrupt(){
+  game.roundComplete=true;render();
+  document.getElementById('actions').style.display='none';
+  document.getElementById('newGameBtn').classList.remove('show');
+  setTimeout(()=>{hideShowdownBox();document.getElementById('bankruptOverlay').classList.add('show')},2200);
+}
+
+function showVictory(){
+  game.roundComplete=true;render();sndWin(true);
+  document.getElementById('actions').style.display='none';
+  document.getElementById('newGameBtn').classList.remove('show');
+
+  let diff=DIFFICULTY[currentDifficulty];
+  let stars='';
+  if(currentDifficulty==='easy')stars='⭐';
+  else if(currentDifficulty==='medium')stars='⭐⭐';
+  else if(currentDifficulty==='hard')stars='⭐⭐⭐';
+  else if(currentDifficulty==='hell')stars='💀💀💀';
+
+  document.getElementById('victoryStars').textContent=stars;
+  document.getElementById('victoryTitle').textContent=currentDifficulty==='hell'?t().hellWin:t().victory;
+
+  let chipCount=game.players.find(p=>p.isHuman)?.chips||0;
+  document.getElementById('victorySub').textContent=t().victorySub(t().diff[currentDifficulty],chipCount);
+
+  let hellUnlock=document.getElementById('hellUnlock');
+  if(currentDifficulty==='hard'&&!hardCleared){
+    hardCleared=true;
+    try{localStorage.setItem('th_hell','1')}catch(e){}
+    hellUnlock.classList.remove('hidden');
+    document.getElementById('btnHell').classList.add('unlocked');
+    document.getElementById('hellLock').style.display='none';
+  }else{
+    hellUnlock.classList.add('hidden');
+  }
+
+  setTimeout(()=>{hideShowdownBox();document.getElementById('victoryOverlay').classList.add('show')},2200);
+}
+
+function restartFromOverlay(){
+  document.getElementById('bankruptOverlay').classList.remove('show');
+  document.getElementById('victoryOverlay').classList.remove('show');
+  document.getElementById('newGameBtn').classList.remove('show');
+  document.getElementById('actions').style.display='none';
+  hideShowdownBox();
+  initGame();game.phase='idle';render();
+  showMsg(t().clickNext);
+  document.getElementById('newGameBtn').classList.add('show');
+}
+
+// ===== 开始游戏 =====
+function startGame(diff){
+  currentDifficulty=diff;
+  document.getElementById('menuOverlay').classList.add('hidden');
+  document.getElementById('tableWrap').style.display='';
+
+  let badge=document.getElementById('diffBadge');
+  badge.className='diff-badge '+DIFFICULTY[diff].badgeCss;
+  badge.textContent=t().mode(t().diff[diff]);
+
+  hideShowdownBox();
+  initGame();
+  game.phase='idle';
+  render();
+  document.getElementById('actions').style.display='none';
+  showMsg(t().clickNext);
+  document.getElementById('newGameBtn').classList.add('show');
+}
+
+function showMsg(t){let m=document.getElementById('msg');m.textContent=t;m.style.opacity='1';if(t)setTimeout(()=>{m.style.opacity='0'},3000)}
+
+// ===== 启动 =====
+(function(){
+  try{if(localStorage.getItem('th_hell')==='1'){hardCleared=true;document.getElementById('btnHell').classList.add('unlocked');document.getElementById('hellLock').style.display='none'}}catch(e){}
+  try{const sv=localStorage.getItem('th_lang');if(sv==='zh'||sv==='en')LANG=sv;else LANG='en'}catch(e){}
+  applyLang();
+})();
+</script>
+</body>
+</html>
